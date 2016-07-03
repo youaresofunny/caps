@@ -1,99 +1,136 @@
 'use strict';
 
 Physijs.scripts.worker = '/js/physijs_worker.js';
+Physijs.scripts.ammo = '/js/ammo.js';
 
+var initScene, render, createShape, loader,createCap,
+	renderer, render_stats, physics_stats, scene, light, ground, ground_material, camera;
+	var shape,material;
 
-var camera, scene, renderer, startTime, object;
-var container, stats;
-function init() {
-	container = document.createElement( 'div' );
-	document.body.appendChild( container );
-	var info = document.createElement( 'div' );
-	info.style.position = 'absolute';
-	info.style.top = '10px';
-	info.style.width = '100%';
-	info.style.textAlign = 'center';
-	container.appendChild( info );
-
-
-	camera = new THREE.PerspectiveCamera(
-			90, window.innerWidth / window.innerHeight, 0.25, 1000 );
-	camera.position.set( 11.441660950109432,31.978614483870004,6.166577442586645 );
-	scene = new THREE.Scene();
-	// Lights
-	scene.add( new THREE.AmbientLight( 0x505050 ) );
-	var spotLight = new THREE.SpotLight( 0xffffff );
-	spotLight.angle = Math.PI / 5;
-	spotLight.penumbra = 0.2;
-	spotLight.position.set( 11.441660950109432,31.978614483870004,6.166577442586645 );
-	spotLight.castShadow = true;
-	spotLight.shadow.camera.near = 3;
-	spotLight.shadow.camera.far = 10;
-	spotLight.shadow.mapSize.width = 1024;
-	spotLight.shadow.mapSize.height = 1024;
-	scene.add( spotLight );
-	var dirLight = new THREE.DirectionalLight( 0x55505a, 1 );
-	dirLight.position.set( 0, 3, 0 );
-	dirLight.castShadow = true;
-	dirLight.shadow.camera.near = 1;
-	dirLight.shadow.camera.far = 10;
-	dirLight.shadow.camera.right = 1;
-	dirLight.shadow.camera.left = - 1;
-	dirLight.shadow.camera.top	= 1;
-	dirLight.shadow.camera.bottom = - 1;
-	dirLight.shadow.mapSize.width = 1024;
-	dirLight.shadow.mapSize.height = 1024;
-	scene.add( dirLight );
-
-	// Geometry
-	var material = new THREE.MeshPhongMaterial( {
-			color: 0x80ee10,
-			shininess: 100,
-			side: THREE.DoubleSide,
-			clipShadows: true
-		} ),
-	geometry = new THREE.CylinderGeometry( 10, 10, 1, 60 );
-
-	object = new THREE.Mesh( geometry, material );
-	object.position.set(0,10,0);
-	object.castShadow = true;
-	scene.add( object );
-
-	var ground = new THREE.Mesh(
-			new THREE.PlaneBufferGeometry( 1000, 1000, 1, 1 ),
-			new THREE.MeshPhongMaterial( {
-				color: 0xa0adaf, shininess: 150 } ) );
-	ground.rotation.x = - Math.PI / 2; // rotates X/Y to X/Z
-	ground.receiveShadow = true;
-	scene.add( ground );
-	// Renderer
-	renderer = new THREE.WebGLRenderer();
-	renderer.shadowMap.enabled = true;
-	renderer.setPixelRatio( window.devicePixelRatio );
+initScene = function() {
+	renderer = new THREE.WebGLRenderer({ antialias: true });
 	renderer.setSize( window.innerWidth, window.innerHeight );
-	window.addEventListener( 'resize', onWindowResize, false );
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMapSoft = true;
+	renderer.setClearColor( 0xffffff, 0);
 	document.body.appendChild( renderer.domElement );
 	
+	render_stats = new Stats();
+	render_stats.domElement.style.position = 'absolute';
+	render_stats.domElement.style.top = '0px';
+	render_stats.domElement.style.zIndex = 100;
+	document.body.appendChild( render_stats.domElement );
+	
+	physics_stats = new Stats();
+	physics_stats.domElement.style.position = 'absolute';
+	physics_stats.domElement.style.top = '50px';
+	physics_stats.domElement.style.zIndex = 100;
+	document.body.appendChild( physics_stats.domElement );
+	
+	scene = new Physijs.Scene({ fixedTimeStep: 1 / 120 });
+	scene.setGravity(new THREE.Vector3( 0, -98, 0 ));
+	scene.addEventListener(
+		'update',
+		function() {
+			scene.simulate( undefined, 2 );
+			physics_stats.update();
+		}
+	);
+	
+	camera = new THREE.PerspectiveCamera(
+		35,
+		window.innerWidth / window.innerHeight,
+		1,
+		1000
+	);
+	camera.position.set( 202.766905338907,173.18437131185414,108.13566913502217);
+	camera.lookAt( scene.position );
+	scene.add( camera );
+
+	var light = new THREE.PointLight( 0xffffff, 0.5 );
+	camera.add( light );
+	
+	// Light
+	light = new THREE.DirectionalLight( 0xFFFFFF );
+	light.position.set( 20, 40, -15 );
+	light.target.position.copy( scene.position );
+	light.castShadow = true;
+	light.shadow.camera.left = -60;
+	light.shadow.camera.top = -60;
+	light.shadow.camera.right = 60;
+	light.shadow.camera.bottom = 60;
+	light.shadow.camera.near = 20;
+	light.shadow.camera.far = 200;
+	light.shadow.bias = -.0001
+	light.shadow.mapSize.width = light.shadow.mapSize.height = 1024;
+	scene.add( light );
+	// Loader
+	loader = new THREE.TextureLoader();
+	
+	// Materials
+	ground_material = Physijs.createMaterial(
+		new THREE.MeshLambertMaterial({ map: loader.load( 'images/rocks.jpg' ) }),
+		.2, // high friction
+		.6 // low restitution
+	);
+	ground_material.map.wrapS = ground_material.map.wrapT = THREE.RepeatWrapping;
+	ground_material.map.repeat.set( 2.5, 2.5 );
+	
+	// Ground
+	ground = new Physijs.BoxMesh(
+		new THREE.BoxGeometry(150, 1, 150),
+		//new THREE.PlaneGeometry(50, 50),
+		ground_material,
+		0 // mass
+	);
+	ground.receiveShadow = true;
+	scene.add( ground );
+
 
 	var controls = new THREE.OrbitControls( camera, renderer.domElement );
 	controls.target.set( 0, 1, 0 );
 	controls.update();
-	stats = new Stats();
-				container.appendChild( stats.dom );
-	// Start
-	startTime = Date.now();
-}
-function onWindowResize() {
-	camera.aspect = window.innerWidth / window.innerHeight;
-	camera.updateProjectionMatrix();
-	renderer.setSize( window.innerWidth, window.innerHeight );
-}
-function animate() {
-	var currentTime = Date.now(),
-		time = ( currentTime - startTime ) / 1000;
-	stats.update();
-	requestAnimationFrame( animate );
+	for (var i = 0; i<5; i++){
+		createCap();
+	}
+	render();
+};
+
+createCap = function() {
+	var cylinder_geometry = new THREE.CylinderGeometry( 10, 10, 1, 100 );
+	material = Physijs.createMaterial(
+			new THREE.MeshLambertMaterial({ opacity: 1, transparent: false }),
+			.8, // medium friction
+			.0 // medium restitution
+		); 
+	shape = new Physijs.CylinderMesh(cylinder_geometry, material,0.3);
+	shape.material.color.setRGB( Math.random() * 100 / 100, Math.random() * 100 / 100, Math.random() * 100 / 100 );
+	shape.castShadow = true;
+	shape.receiveShadow = true;
+
+
+	shape.setLinearVelocity(new THREE.Vector3(300, 300, 0));
+    shape.setAngularVelocity(new THREE.Vector3(0, 0, 0));
+	
+	shape.position.set(
+		Math.random() * 30 - 15,
+		Math.random() * 100 + Math.random() * 50,
+		Math.random() * 30 - 15
+	);
+	
+	shape.rotation.set(
+		Math.random() * Math.PI,
+		Math.random() * Math.PI,
+		Math.random() * Math.PI
+	);
+	scene.add( shape );
+};
+
+render = function() {
+	requestAnimationFrame( render );
+	scene.simulate();
 	renderer.render( scene, camera );
-}
-init();
-animate();
+	render_stats.update();
+};
+
+window.onload = initScene;
