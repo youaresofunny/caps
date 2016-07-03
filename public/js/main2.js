@@ -8,11 +8,10 @@ var initScene, render, createShape, loader,createCap,
 	var shape,material;
 
 initScene = function() {
-	renderer = new THREE.WebGLRenderer({ antialias: true });
+	renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMapSoft = true;
-	renderer.setClearColor( 0xffffff, 0);
 	document.body.appendChild( renderer.domElement );
 	
 	render_stats = new Stats();
@@ -47,8 +46,6 @@ initScene = function() {
 	camera.lookAt( scene.position );
 	scene.add( camera );
 
-	var light = new THREE.PointLight( 0xffffff, 0.5 );
-	camera.add( light );
 	
 	// Light
 	light = new THREE.DirectionalLight( 0xFFFFFF );
